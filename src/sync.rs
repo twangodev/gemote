@@ -32,14 +32,22 @@ pub enum SyncAction {
 impl fmt::Display for SyncAction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SyncAction::Add { name, url, push_url } => {
+            SyncAction::Add {
+                name,
+                url,
+                push_url,
+            } => {
                 write!(f, "{} remote {} (url: {})", "add".green(), name.bold(), url)?;
                 if let Some(pu) = push_url {
                     write!(f, " (push_url: {pu})")?;
                 }
                 Ok(())
             }
-            SyncAction::UpdateUrl { name, old_url, new_url } => {
+            SyncAction::UpdateUrl {
+                name,
+                old_url,
+                new_url,
+            } => {
                 write!(
                     f,
                     "{} remote {} url: {} -> {}",
@@ -123,13 +131,14 @@ pub fn compute_diff(
     actions
 }
 
-pub fn apply_actions(
-    repo: &git2::Repository,
-    actions: &[SyncAction],
-) -> Result<(), GemoteError> {
+pub fn apply_actions(repo: &git2::Repository, actions: &[SyncAction]) -> Result<(), GemoteError> {
     for action in actions {
         match action {
-            SyncAction::Add { name, url, push_url } => {
+            SyncAction::Add {
+                name,
+                url,
+                push_url,
+            } => {
                 git::add_remote(repo, name, url, push_url.as_deref())?;
             }
             SyncAction::UpdateUrl { name, new_url, .. } => {
@@ -151,10 +160,7 @@ mod tests {
     use super::*;
     use crate::config::{RemoteConfig, Settings};
 
-    fn make_config(
-        extra: ExtraRemotes,
-        remotes: Vec<(&str, &str, Option<&str>)>,
-    ) -> GemoteConfig {
+    fn make_config(extra: ExtraRemotes, remotes: Vec<(&str, &str, Option<&str>)>) -> GemoteConfig {
         let mut cfg = GemoteConfig {
             settings: Settings {
                 extra_remotes: extra,
@@ -364,20 +370,26 @@ mod tests {
         let local = make_local(vec![
             ("origin", "https://old-origin.com/repo.git", None), // URL mismatch -> Update
             ("stale", "https://stale.com/repo.git", None),       // not in config -> Remove
-            // upstream missing from local -> Add
+                                                                 // upstream missing from local -> Add
         ]);
         let actions = compute_diff(&cfg, &local);
 
         assert_eq!(actions.len(), 3);
-        assert!(actions
-            .iter()
-            .any(|a| matches!(a, SyncAction::UpdateUrl { name, .. } if name == "origin")));
-        assert!(actions
-            .iter()
-            .any(|a| matches!(a, SyncAction::Add { name, .. } if name == "upstream")));
-        assert!(actions
-            .iter()
-            .any(|a| matches!(a, SyncAction::Remove { name } if name == "stale")));
+        assert!(
+            actions
+                .iter()
+                .any(|a| matches!(a, SyncAction::UpdateUrl { name, .. } if name == "origin"))
+        );
+        assert!(
+            actions
+                .iter()
+                .any(|a| matches!(a, SyncAction::Add { name, .. } if name == "upstream"))
+        );
+        assert!(
+            actions
+                .iter()
+                .any(|a| matches!(a, SyncAction::Remove { name } if name == "stale"))
+        );
     }
 
     // --- apply_actions tests ---
@@ -443,7 +455,8 @@ mod tests {
     #[test]
     fn apply_update_push_url() {
         let (_dir, repo) = test_repo();
-        repo.remote("origin", "https://example.com/repo.git").unwrap();
+        repo.remote("origin", "https://example.com/repo.git")
+            .unwrap();
 
         let actions = vec![SyncAction::UpdatePushUrl {
             name: "origin".into(),
@@ -459,7 +472,8 @@ mod tests {
     #[test]
     fn apply_remove() {
         let (_dir, repo) = test_repo();
-        repo.remote("origin", "https://example.com/repo.git").unwrap();
+        repo.remote("origin", "https://example.com/repo.git")
+            .unwrap();
 
         let actions = vec![SyncAction::Remove {
             name: "origin".into(),

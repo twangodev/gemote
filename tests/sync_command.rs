@@ -1,7 +1,7 @@
 mod common;
 
-use assert_cmd::cargo::cargo_bin_cmd;
 use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 use common::{add_test_remote, create_test_repo, get_remote_url, write_config};
 use predicates::prelude::*;
 

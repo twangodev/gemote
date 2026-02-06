@@ -60,7 +60,11 @@ mod tests {
     #[test]
     fn extra_remotes_serde_roundtrip() {
         // Wrap in Settings since toml can't serialize a bare enum
-        for variant in [ExtraRemotes::Ignore, ExtraRemotes::Warn, ExtraRemotes::Remove] {
+        for variant in [
+            ExtraRemotes::Ignore,
+            ExtraRemotes::Warn,
+            ExtraRemotes::Remove,
+        ] {
             let settings = Settings {
                 extra_remotes: variant.clone(),
             };

@@ -69,9 +69,15 @@ mod tests {
 
     #[test]
     fn parse_global_flags() {
-        let cli =
-            Cli::try_parse_from(["gemote", "--config", "/tmp/cfg", "--repo", "/tmp/repo", "sync"])
-                .unwrap();
+        let cli = Cli::try_parse_from([
+            "gemote",
+            "--config",
+            "/tmp/cfg",
+            "--repo",
+            "/tmp/repo",
+            "sync",
+        ])
+        .unwrap();
         assert_eq!(cli.config.unwrap(), PathBuf::from("/tmp/cfg"));
         assert_eq!(cli.repo.unwrap(), PathBuf::from("/tmp/repo"));
     }

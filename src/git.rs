@@ -22,13 +22,7 @@ pub fn list_remotes(repo: &git2::Repository) -> Result<BTreeMap<String, RemoteIn
         let remote = repo.find_remote(name)?;
         let url = remote.url().unwrap_or_default().to_string();
         let push_url = remote.pushurl().map(String::from);
-        map.insert(
-            name.to_string(),
-            RemoteInfo {
-                url,
-                push_url,
-            },
-        );
+        map.insert(name.to_string(), RemoteInfo { url, push_url });
     }
     Ok(map)
 }
@@ -106,7 +100,8 @@ mod tests {
     #[test]
     fn list_remotes_single() {
         let (_dir, repo) = test_repo();
-        repo.remote("origin", "https://example.com/repo.git").unwrap();
+        repo.remote("origin", "https://example.com/repo.git")
+            .unwrap();
 
         let remotes = list_remotes(&repo).unwrap();
         assert_eq!(remotes.len(), 1);
@@ -129,8 +124,10 @@ mod tests {
     #[test]
     fn list_remotes_with_push_url() {
         let (_dir, repo) = test_repo();
-        repo.remote("origin", "https://example.com/repo.git").unwrap();
-        repo.remote_set_pushurl("origin", Some("git@example.com:repo.git")).unwrap();
+        repo.remote("origin", "https://example.com/repo.git")
+            .unwrap();
+        repo.remote_set_pushurl("origin", Some("git@example.com:repo.git"))
+            .unwrap();
 
         let remotes = list_remotes(&repo).unwrap();
         assert_eq!(
@@ -187,7 +184,8 @@ mod tests {
     #[test]
     fn update_push_url_set() {
         let (_dir, repo) = test_repo();
-        repo.remote("origin", "https://example.com/repo.git").unwrap();
+        repo.remote("origin", "https://example.com/repo.git")
+            .unwrap();
 
         update_remote_push_url(&repo, "origin", Some("git@example.com:repo.git")).unwrap();
 
@@ -198,8 +196,10 @@ mod tests {
     #[test]
     fn update_push_url_clear() {
         let (_dir, repo) = test_repo();
-        repo.remote("origin", "https://example.com/repo.git").unwrap();
-        repo.remote_set_pushurl("origin", Some("git@example.com:repo.git")).unwrap();
+        repo.remote("origin", "https://example.com/repo.git")
+            .unwrap();
+        repo.remote_set_pushurl("origin", Some("git@example.com:repo.git"))
+            .unwrap();
 
         update_remote_push_url(&repo, "origin", None).unwrap();
 
@@ -210,7 +210,8 @@ mod tests {
     #[test]
     fn test_remove_remote() {
         let (_dir, repo) = test_repo();
-        repo.remote("origin", "https://example.com/repo.git").unwrap();
+        repo.remote("origin", "https://example.com/repo.git")
+            .unwrap();
 
         remove_remote(&repo, "origin").unwrap();
 
