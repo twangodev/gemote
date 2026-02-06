@@ -1,6 +1,0 @@
-allow-branch = ["main"]
-sign-tag = true
-tag-prefix = ""
-tag-name = "v{{version}}"
-pre-release-commit-message = "chore: release v{{version}}"
-tag-message = "v{{version}}"
