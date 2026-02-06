@@ -2,6 +2,12 @@
 name = "gemote"
 version = "0.1.0"
 edition = "2024"
+description = "Declarative git remote management."
+license = "MIT"
+repository = "https://github.com/twangodev/gemote"
+keywords = ["git", "remote", "cli", "devtools", "toml"]
+categories = ["command-line-utilities", "development-tools"]
+readme = "README.md"
 
 [dependencies]
 anyhow = "1.0.101"
