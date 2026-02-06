@@ -1,0 +1,7 @@
+[
+  { "os": "ubuntu-latest", "bin": "gemote", "artifact": "gemote-x86_64-linux" },
+  { "os": "ubuntu-24.04-arm", "bin": "gemote", "artifact": "gemote-aarch64-linux" },
+  { "os": "macos-latest", "bin": "gemote", "artifact": "gemote-aarch64-macos" },
+  { "os": "windows-latest", "bin": "gemote.exe", "artifact": "gemote-x86_64-windows.exe" },
+  { "os": "windows-11-arm", "bin": "gemote.exe", "artifact": "gemote-aarch64-windows.exe" }
+]
