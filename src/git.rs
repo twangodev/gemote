@@ -136,13 +136,14 @@ fn discover_nested_repos_recursive(
         if path.join(".git").exists() {
             match git2::Repository::open(&path) {
                 Ok(repo) => {
-                    result.push(SubRepoInfo {
-                        path: rel,
-                        repo,
-                    });
+                    result.push(SubRepoInfo { path: rel, repo });
                 }
                 Err(e) => {
-                    eprintln!("warning: could not open nested repo '{}': {}", path.display(), e);
+                    eprintln!(
+                        "warning: could not open nested repo '{}': {}",
+                        path.display(),
+                        e
+                    );
                 }
             }
             // Don't recurse into nested repos — they are their own boundary

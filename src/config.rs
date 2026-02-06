@@ -315,9 +315,15 @@ url = "https://gitlab.com/c.git"
         let deserialized: GemoteConfig = toml::from_str(&serialized).unwrap();
 
         let outer_cfg = &deserialized.submodules["libs/outer"];
-        assert_eq!(outer_cfg.remotes["origin"].url, "https://example.com/outer.git");
+        assert_eq!(
+            outer_cfg.remotes["origin"].url,
+            "https://example.com/outer.git"
+        );
         let inner_cfg = &outer_cfg.submodules["nested/inner"];
-        assert_eq!(inner_cfg.remotes["origin"].url, "https://example.com/inner.git");
+        assert_eq!(
+            inner_cfg.remotes["origin"].url,
+            "https://example.com/inner.git"
+        );
     }
 
     #[test]

@@ -83,22 +83,17 @@ fn save_fails_if_exists() {
         .args(["--repo", dir.path().to_str().unwrap(), "save"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("--overwrite"));
+        .stderr(predicate::str::contains("--force"));
 }
 
 #[test]
-fn save_overwrites_with_flag() {
+fn save_force_overwrites() {
     let (dir, repo) = create_test_repo();
     write_config(dir.path(), "# old content");
     add_test_remote(&repo, "origin", "https://example.com/repo.git", None);
 
     gemote()
-        .args([
-            "--repo",
-            dir.path().to_str().unwrap(),
-            "save",
-            "--overwrite",
-        ])
+        .args(["--repo", dir.path().to_str().unwrap(), "save", "--force"])
         .assert()
         .success();
 

@@ -31,8 +31,8 @@ pub enum Commands {
     /// Save current local remotes into .gemote
     Save {
         /// Overwrite existing .gemote file
-        #[arg(long)]
-        overwrite: bool,
+        #[arg(long, short = 'f')]
+        force: bool,
         /// Also save remotes for submodules and nested repos
         #[arg(long, short = 'r')]
         recursive: bool,
@@ -103,19 +103,31 @@ mod tests {
         assert!(matches!(
             cli.command,
             Commands::Save {
-                overwrite: false,
+                force: false,
                 recursive: false
             }
         ));
     }
 
     #[test]
-    fn parse_save_overwrite() {
-        let cli = Cli::try_parse_from(["gemote", "save", "--overwrite"]).unwrap();
+    fn parse_save_force() {
+        let cli = Cli::try_parse_from(["gemote", "save", "--force"]).unwrap();
         assert!(matches!(
             cli.command,
             Commands::Save {
-                overwrite: true,
+                force: true,
+                recursive: false
+            }
+        ));
+    }
+
+    #[test]
+    fn parse_save_force_short() {
+        let cli = Cli::try_parse_from(["gemote", "save", "-f"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Save {
+                force: true,
                 recursive: false
             }
         ));
@@ -127,7 +139,7 @@ mod tests {
         assert!(matches!(
             cli.command,
             Commands::Save {
-                overwrite: false,
+                force: false,
                 recursive: true
             }
         ));
@@ -139,7 +151,7 @@ mod tests {
         assert!(matches!(
             cli.command,
             Commands::Save {
-                overwrite: false,
+                force: false,
                 recursive: true
             }
         ));
