@@ -145,7 +145,7 @@ jobs:
         with:
           images: |
             ghcr.io/twangodev/gemote
-            twangodev/gemote
+            ${{ vars.DOCKERHUB_USERNAME }}/gemote
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
