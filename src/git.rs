@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
+use path_slash::PathExt as _;
+
 use crate::error::GemoteError;
 
 pub struct RemoteInfo {
@@ -126,8 +128,8 @@ fn discover_nested_repos_recursive(
         let rel = path
             .strip_prefix(base)
             .unwrap_or(&path)
-            .to_string_lossy()
-            .replace('\\', "/");
+            .to_slash_lossy()
+            .into_owned();
         // Skip known submodule paths
         if known_paths.contains(&rel) {
             continue;
