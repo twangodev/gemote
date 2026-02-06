@@ -4,3 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1.0.101"
+clap = { version = "4.5.57", features = ["derive"] }
+colored = "3.1.1"
+git2 = "0.20.4"
+serde = { version = "1.0.228", features = ["derive"] }
+thiserror = "2.0.18"
+toml = "0.9.11"
