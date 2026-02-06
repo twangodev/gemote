@@ -4,7 +4,7 @@ mod error;
 mod git;
 mod sync;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -30,7 +30,7 @@ fn main() -> Result<()> {
 
 fn cmd_sync(
     repo: &git2::Repository,
-    repo_root: &PathBuf,
+    repo_root: &Path,
     config_path: Option<PathBuf>,
     dry_run: bool,
 ) -> Result<()> {
@@ -62,7 +62,7 @@ fn cmd_sync(
 
 fn cmd_save(
     repo: &git2::Repository,
-    repo_root: &PathBuf,
+    repo_root: &Path,
     config_path: Option<PathBuf>,
     overwrite: bool,
 ) -> Result<()> {
