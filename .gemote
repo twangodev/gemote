@@ -1,3 +1,5 @@
+# -*- mode: toml -*-
+# vim: set ft=toml:
 [settings]
 extra_remotes = "ignore"
 
