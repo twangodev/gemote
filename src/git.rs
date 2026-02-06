@@ -127,7 +127,7 @@ fn discover_nested_repos_recursive(
             .strip_prefix(base)
             .unwrap_or(&path)
             .to_string_lossy()
-            .to_string();
+            .replace('\\', "/");
         // Skip known submodule paths
         if known_paths.contains(&rel) {
             continue;
