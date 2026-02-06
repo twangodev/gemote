@@ -2,7 +2,7 @@ mod common;
 
 use assert_cmd::Command;
 use assert_cmd::cargo::cargo_bin_cmd;
-use common::{add_test_remote, create_test_repo, get_remote_url, write_config};
+use common::{add_test_remote, create_nested_repo, create_test_repo, get_remote_url, write_config};
 use predicates::prelude::*;
 
 fn gemote() -> Command {
@@ -249,4 +249,119 @@ fn sync_not_a_repo() {
         .args(["--repo", dir.path().to_str().unwrap(), "sync"])
         .assert()
         .failure();
+}
+
+#[test]
+fn sync_recursive_applies_to_nested() {
+    let (dir, _repo) = create_test_repo();
+    let nested = create_nested_repo(dir.path(), "libs/core");
+
+    write_config(
+        dir.path(),
+        r#"
+[remotes.origin]
+url = "https://example.com/repo.git"
+
+[submodules."libs/core".remotes.origin]
+url = "https://example.com/core.git"
+"#,
+    );
+
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "sync", "-r"])
+        .assert()
+        .success();
+
+    let (url, _) = get_remote_url(&nested, "origin");
+    assert_eq!(url, "https://example.com/core.git");
+}
+
+#[test]
+fn sync_recursive_dry_run() {
+    let (dir, _repo) = create_test_repo();
+    let nested = create_nested_repo(dir.path(), "libs/core");
+
+    write_config(
+        dir.path(),
+        r#"
+[submodules."libs/core".remotes.origin]
+url = "https://example.com/core.git"
+"#,
+    );
+
+    gemote()
+        .args([
+            "--repo",
+            dir.path().to_str().unwrap(),
+            "sync",
+            "-r",
+            "--dry-run",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("dry run"));
+
+    // Remote should NOT have been added to nested repo
+    assert!(nested.find_remote("origin").is_err());
+}
+
+#[test]
+fn sync_recursive_warns_missing_repo() {
+    let (dir, _repo) = create_test_repo();
+
+    write_config(
+        dir.path(),
+        r#"
+[submodules."nonexistent".remotes.origin]
+url = "https://example.com/missing.git"
+"#,
+    );
+
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "sync", "-r"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("no matching repo found"));
+}
+
+#[test]
+fn sync_recursive_warns_no_config() {
+    let (dir, _repo) = create_test_repo();
+    let _nested = create_nested_repo(dir.path(), "libs/core");
+
+    write_config(
+        dir.path(),
+        r#"
+[settings]
+extra_remotes = "ignore"
+"#,
+    );
+
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "sync", "-r"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("has no config section"));
+}
+
+#[test]
+fn sync_nonrecursive_ignores_nested() {
+    let (dir, _repo) = create_test_repo();
+    let nested = create_nested_repo(dir.path(), "libs/core");
+
+    write_config(
+        dir.path(),
+        r#"
+[submodules."libs/core".remotes.origin]
+url = "https://example.com/core.git"
+"#,
+    );
+
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "sync"])
+        .assert()
+        .success();
+
+    // Nested repo should NOT have the remote
+    assert!(nested.find_remote("origin").is_err());
 }

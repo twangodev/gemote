@@ -410,4 +410,68 @@ mod tests {
         assert_eq!(all.len(), 1);
         assert_eq!(all[0].path, "vendor/lib");
     }
+
+    #[test]
+    fn discover_nested_repos_multiple() {
+        let dir = TempDir::new().unwrap();
+        git2::Repository::init(dir.path()).unwrap();
+
+        // Create two nested repos at different depths
+        let shallow = dir.path().join("libs").join("core");
+        std::fs::create_dir_all(&shallow).unwrap();
+        git2::Repository::init(&shallow).unwrap();
+
+        let deep = dir.path().join("vendor").join("deps").join("util");
+        std::fs::create_dir_all(&deep).unwrap();
+        git2::Repository::init(&deep).unwrap();
+
+        let known = BTreeSet::new();
+        let nested = discover_nested_repos(dir.path(), &known).unwrap();
+        assert_eq!(nested.len(), 2);
+
+        let paths: Vec<&str> = nested.iter().map(|s| s.path.as_str()).collect();
+        assert!(paths.contains(&"libs/core"));
+        assert!(paths.contains(&"vendor/deps/util"));
+    }
+
+    #[test]
+    fn discover_nested_repos_stops_at_git_boundary() {
+        let dir = TempDir::new().unwrap();
+        git2::Repository::init(dir.path()).unwrap();
+
+        // Create an outer nested repo
+        let outer = dir.path().join("libs").join("outer");
+        std::fs::create_dir_all(&outer).unwrap();
+        git2::Repository::init(&outer).unwrap();
+
+        // Create an inner repo inside the outer one — should NOT be found
+        let inner = outer.join("sub").join("inner");
+        std::fs::create_dir_all(&inner).unwrap();
+        git2::Repository::init(&inner).unwrap();
+
+        let known = BTreeSet::new();
+        let nested = discover_nested_repos(dir.path(), &known).unwrap();
+        assert_eq!(nested.len(), 1);
+        assert_eq!(nested[0].path, "libs/outer");
+    }
+
+    #[test]
+    fn collect_all_repos_deduplicates() {
+        let (dir, repo) = test_repo();
+
+        // Create a nested repo that could be found by discovery
+        let nested_path = dir.path().join("libs").join("core");
+        std::fs::create_dir_all(&nested_path).unwrap();
+        git2::Repository::init(&nested_path).unwrap();
+
+        // collect_all_repos merges submodules (empty here) + discovered,
+        // then deduplicates — verify no duplicates in output
+        let all = collect_all_repos(&repo, dir.path()).unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].path, "libs/core");
+
+        // Verify paths are unique
+        let paths: BTreeSet<String> = all.iter().map(|s| s.path.clone()).collect();
+        assert_eq!(paths.len(), all.len());
+    }
 }

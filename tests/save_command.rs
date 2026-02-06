@@ -2,7 +2,7 @@ mod common;
 
 use assert_cmd::Command;
 use assert_cmd::cargo::cargo_bin_cmd;
-use common::{add_test_remote, create_test_repo, get_remote_url, write_config};
+use common::{add_test_remote, create_nested_repo, create_test_repo, get_remote_url, write_config};
 use predicates::prelude::*;
 
 fn gemote() -> Command {
@@ -165,4 +165,88 @@ fn save_then_sync_roundtrip() {
     let (url, push_url) = get_remote_url(&repo, "upstream");
     assert_eq!(url, "https://upstream.com/repo.git");
     assert_eq!(push_url.as_deref(), Some("git@upstream.com:repo.git"));
+}
+
+#[test]
+fn save_recursive_with_nested_repo() {
+    let (dir, _repo) = create_test_repo();
+    let nested = create_nested_repo(dir.path(), "libs/core");
+    nested
+        .remote("origin", "https://example.com/core.git")
+        .unwrap();
+
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "save", "-r"])
+        .assert()
+        .success();
+
+    let content = std::fs::read_to_string(dir.path().join(".gemote")).unwrap();
+    assert!(content.contains("[submodules.\"libs/core\".remotes.origin]"));
+    assert!(content.contains("https://example.com/core.git"));
+}
+
+#[test]
+fn save_recursive_no_nested() {
+    let (dir, _repo) = create_test_repo();
+
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "save", "-r"])
+        .assert()
+        .success();
+
+    let content = std::fs::read_to_string(dir.path().join(".gemote")).unwrap();
+    assert!(!content.contains("submodules"));
+}
+
+#[test]
+fn save_nonrecursive_ignores_nested() {
+    let (dir, _repo) = create_test_repo();
+    let nested = create_nested_repo(dir.path(), "libs/core");
+    nested
+        .remote("origin", "https://example.com/core.git")
+        .unwrap();
+
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "save"])
+        .assert()
+        .success();
+
+    let content = std::fs::read_to_string(dir.path().join(".gemote")).unwrap();
+    assert!(!content.contains("submodules"));
+}
+
+#[test]
+fn save_then_sync_recursive_roundtrip() {
+    let (dir, repo) = create_test_repo();
+    add_test_remote(&repo, "origin", "https://example.com/repo.git", None);
+    let nested = create_nested_repo(dir.path(), "libs/core");
+    nested
+        .remote("origin", "https://example.com/core.git")
+        .unwrap();
+    nested
+        .remote("upstream", "https://upstream.com/core.git")
+        .unwrap();
+
+    // Save recursively
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "save", "-r"])
+        .assert()
+        .success();
+
+    // Delete all remotes from nested repo
+    nested.remote_delete("origin").unwrap();
+    nested.remote_delete("upstream").unwrap();
+    assert!(nested.remotes().unwrap().is_empty());
+
+    // Sync recursively to restore
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "sync", "-r"])
+        .assert()
+        .success();
+
+    // Verify nested repo's remotes are restored
+    let (url, _) = get_remote_url(&nested, "origin");
+    assert_eq!(url, "https://example.com/core.git");
+    let (url, _) = get_remote_url(&nested, "upstream");
+    assert_eq!(url, "https://upstream.com/core.git");
 }

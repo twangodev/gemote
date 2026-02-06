@@ -27,3 +27,9 @@ pub fn get_remote_url(repo: &git2::Repository, name: &str) -> (String, Option<St
     let push_url = remote.pushurl().map(String::from);
     (url, push_url)
 }
+
+pub fn create_nested_repo(parent_dir: &Path, relative_path: &str) -> git2::Repository {
+    let nested_path = parent_dir.join(relative_path);
+    std::fs::create_dir_all(&nested_path).unwrap();
+    git2::Repository::init(&nested_path).unwrap()
+}
