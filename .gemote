@@ -1,0 +1,5 @@
+[settings]
+extra_remotes = "ignore"
+
+[remotes.origin]
+url = "https://github.com/twangodev/gemote.git"
