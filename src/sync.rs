@@ -166,6 +166,7 @@ mod tests {
                 extra_remotes: extra,
             },
             remotes: BTreeMap::new(),
+            submodules: BTreeMap::new(),
         };
         for (name, url, push_url) in remotes {
             cfg.remotes.insert(

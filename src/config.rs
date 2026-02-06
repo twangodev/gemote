@@ -11,6 +11,8 @@ pub struct GemoteConfig {
     pub settings: Settings,
     #[serde(default)]
     pub remotes: BTreeMap<String, RemoteConfig>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub submodules: BTreeMap<String, GemoteConfig>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -234,5 +236,110 @@ url = "https://gitlab.com/c.git"
             "git@github.com:upstream/repo.git"
         );
         assert!(deserialized.remotes["upstream"].push_url.is_none());
+    }
+
+    #[test]
+    fn roundtrip_with_submodules() {
+        let mut sub_cfg = GemoteConfig::default();
+        sub_cfg.remotes.insert(
+            "origin".into(),
+            RemoteConfig {
+                url: "git@github.com:org/core.git".into(),
+                push_url: None,
+            },
+        );
+        sub_cfg.remotes.insert(
+            "upstream".into(),
+            RemoteConfig {
+                url: "git@github.com:upstream/core.git".into(),
+                push_url: None,
+            },
+        );
+
+        let mut cfg = GemoteConfig::default();
+        cfg.settings.extra_remotes = ExtraRemotes::Ignore;
+        cfg.remotes.insert(
+            "origin".into(),
+            RemoteConfig {
+                url: "git@github.com:org/repo.git".into(),
+                push_url: None,
+            },
+        );
+        cfg.submodules.insert("libs/core".into(), sub_cfg);
+
+        let serialized = serialize_config(&cfg).unwrap();
+        let deserialized: GemoteConfig = toml::from_str(&serialized).unwrap();
+
+        assert_eq!(deserialized.submodules.len(), 1);
+        let sub = &deserialized.submodules["libs/core"];
+        assert_eq!(sub.remotes.len(), 2);
+        assert_eq!(sub.remotes["origin"].url, "git@github.com:org/core.git");
+        assert_eq!(
+            sub.remotes["upstream"].url,
+            "git@github.com:upstream/core.git"
+        );
+    }
+
+    #[test]
+    fn roundtrip_nested_submodules() {
+        let mut inner = GemoteConfig::default();
+        inner.remotes.insert(
+            "origin".into(),
+            RemoteConfig {
+                url: "https://example.com/inner.git".into(),
+                push_url: None,
+            },
+        );
+
+        let mut outer = GemoteConfig::default();
+        outer.remotes.insert(
+            "origin".into(),
+            RemoteConfig {
+                url: "https://example.com/outer.git".into(),
+                push_url: None,
+            },
+        );
+        outer.submodules.insert("nested/inner".into(), inner);
+
+        let mut cfg = GemoteConfig::default();
+        cfg.remotes.insert(
+            "origin".into(),
+            RemoteConfig {
+                url: "https://example.com/root.git".into(),
+                push_url: None,
+            },
+        );
+        cfg.submodules.insert("libs/outer".into(), outer);
+
+        let serialized = serialize_config(&cfg).unwrap();
+        let deserialized: GemoteConfig = toml::from_str(&serialized).unwrap();
+
+        let outer_cfg = &deserialized.submodules["libs/outer"];
+        assert_eq!(outer_cfg.remotes["origin"].url, "https://example.com/outer.git");
+        let inner_cfg = &outer_cfg.submodules["nested/inner"];
+        assert_eq!(inner_cfg.remotes["origin"].url, "https://example.com/inner.git");
+    }
+
+    #[test]
+    fn backward_compat_no_submodules() {
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        write!(
+            f,
+            r#"
+[remotes.origin]
+url = "https://example.com/repo.git"
+"#
+        )
+        .unwrap();
+
+        let cfg = load_config(f.path()).unwrap();
+        assert!(cfg.submodules.is_empty());
+    }
+
+    #[test]
+    fn serialize_omits_empty_submodules() {
+        let cfg = GemoteConfig::default();
+        let output = serialize_config(&cfg).unwrap();
+        assert!(!output.contains("submodules"));
     }
 }

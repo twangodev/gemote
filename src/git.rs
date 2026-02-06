@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use crate::error::GemoteError;
@@ -61,6 +61,114 @@ pub fn update_remote_push_url(
 pub fn remove_remote(repo: &git2::Repository, name: &str) -> Result<(), GemoteError> {
     repo.remote_delete(name)?;
     Ok(())
+}
+
+pub struct SubRepoInfo {
+    pub path: String,
+    pub repo: git2::Repository,
+}
+
+pub fn list_submodules(repo: &git2::Repository) -> Result<Vec<SubRepoInfo>, GemoteError> {
+    let mut result = Vec::new();
+    let submodules = repo.submodules()?;
+    for sub in submodules {
+        let name = sub.name().unwrap_or_default().to_string();
+        match sub.open() {
+            Ok(sub_repo) => {
+                result.push(SubRepoInfo {
+                    path: name,
+                    repo: sub_repo,
+                });
+            }
+            Err(e) => {
+                eprintln!(
+                    "warning: skipping uninitialized submodule '{}': {}",
+                    name, e
+                );
+            }
+        }
+    }
+    Ok(result)
+}
+
+pub fn discover_nested_repos(
+    repo_root: &Path,
+    known_paths: &BTreeSet<String>,
+) -> Result<Vec<SubRepoInfo>, GemoteError> {
+    let mut result = Vec::new();
+    discover_nested_repos_recursive(repo_root, repo_root, known_paths, &mut result)?;
+    Ok(result)
+}
+
+fn discover_nested_repos_recursive(
+    base: &Path,
+    dir: &Path,
+    known_paths: &BTreeSet<String>,
+    result: &mut Vec<SubRepoInfo>,
+) -> Result<(), GemoteError> {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(_) => return Ok(()),
+    };
+    for entry in entries {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if !file_type.is_dir() {
+            continue;
+        }
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        // Skip hidden directories (including .git)
+        if name_str.starts_with('.') {
+            continue;
+        }
+        let path = entry.path();
+        let rel = path
+            .strip_prefix(base)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .to_string();
+        // Skip known submodule paths
+        if known_paths.contains(&rel) {
+            continue;
+        }
+        // Check if this directory is a git repo
+        if path.join(".git").exists() {
+            match git2::Repository::open(&path) {
+                Ok(repo) => {
+                    result.push(SubRepoInfo {
+                        path: rel,
+                        repo,
+                    });
+                }
+                Err(e) => {
+                    eprintln!("warning: could not open nested repo '{}': {}", path.display(), e);
+                }
+            }
+            // Don't recurse into nested repos — they are their own boundary
+            continue;
+        }
+        // Recurse into subdirectory
+        discover_nested_repos_recursive(base, &path, known_paths, result)?;
+    }
+    Ok(())
+}
+
+pub fn collect_all_repos(
+    repo: &git2::Repository,
+    repo_root: &Path,
+) -> Result<Vec<SubRepoInfo>, GemoteError> {
+    let submodules = list_submodules(repo)?;
+    let known: BTreeSet<String> = submodules.iter().map(|s| s.path.clone()).collect();
+    let nested = discover_nested_repos(repo_root, &known)?;
+
+    let mut all = submodules;
+    all.extend(nested);
+    // Deduplicate by path and sort
+    let mut seen = BTreeSet::new();
+    all.retain(|info| seen.insert(info.path.clone()));
+    all.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(all)
 }
 
 #[cfg(test)]
@@ -223,5 +331,83 @@ mod tests {
         let (_dir, repo) = test_repo();
         let result = remove_remote(&repo, "nonexistent");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn list_submodules_empty() {
+        let (_dir, repo) = test_repo();
+        let subs = list_submodules(&repo).unwrap();
+        assert!(subs.is_empty());
+    }
+
+    #[test]
+    fn discover_nested_repos_empty() {
+        let dir = TempDir::new().unwrap();
+        git2::Repository::init(dir.path()).unwrap();
+        let known = BTreeSet::new();
+        let nested = discover_nested_repos(dir.path(), &known).unwrap();
+        assert!(nested.is_empty());
+    }
+
+    #[test]
+    fn discover_nested_repos_finds_repo() {
+        let dir = TempDir::new().unwrap();
+        git2::Repository::init(dir.path()).unwrap();
+        // Create a nested repo
+        let nested_path = dir.path().join("libs").join("core");
+        std::fs::create_dir_all(&nested_path).unwrap();
+        git2::Repository::init(&nested_path).unwrap();
+
+        let known = BTreeSet::new();
+        let nested = discover_nested_repos(dir.path(), &known).unwrap();
+        assert_eq!(nested.len(), 1);
+        assert_eq!(nested[0].path, "libs/core");
+    }
+
+    #[test]
+    fn discover_nested_repos_skips_known() {
+        let dir = TempDir::new().unwrap();
+        git2::Repository::init(dir.path()).unwrap();
+        let nested_path = dir.path().join("libs").join("core");
+        std::fs::create_dir_all(&nested_path).unwrap();
+        git2::Repository::init(&nested_path).unwrap();
+
+        let mut known = BTreeSet::new();
+        known.insert("libs/core".to_string());
+        let nested = discover_nested_repos(dir.path(), &known).unwrap();
+        assert!(nested.is_empty());
+    }
+
+    #[test]
+    fn discover_nested_repos_skips_hidden() {
+        let dir = TempDir::new().unwrap();
+        git2::Repository::init(dir.path()).unwrap();
+        // Create a hidden dir with a git repo inside — should be skipped
+        let hidden_path = dir.path().join(".hidden").join("repo");
+        std::fs::create_dir_all(&hidden_path).unwrap();
+        git2::Repository::init(&hidden_path).unwrap();
+
+        let known = BTreeSet::new();
+        let nested = discover_nested_repos(dir.path(), &known).unwrap();
+        assert!(nested.is_empty());
+    }
+
+    #[test]
+    fn collect_all_repos_empty() {
+        let (dir, repo) = test_repo();
+        let all = collect_all_repos(&repo, dir.path()).unwrap();
+        assert!(all.is_empty());
+    }
+
+    #[test]
+    fn collect_all_repos_discovers_nested() {
+        let (dir, repo) = test_repo();
+        let nested_path = dir.path().join("vendor").join("lib");
+        std::fs::create_dir_all(&nested_path).unwrap();
+        git2::Repository::init(&nested_path).unwrap();
+
+        let all = collect_all_repos(&repo, dir.path()).unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].path, "vendor/lib");
     }
 }

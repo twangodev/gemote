@@ -24,12 +24,18 @@ pub enum Commands {
         /// Preview changes without applying them
         #[arg(long)]
         dry_run: bool,
+        /// Also process submodules and nested repos
+        #[arg(long, short = 'r')]
+        recursive: bool,
     },
     /// Save current local remotes into .gemote
     Save {
         /// Overwrite existing .gemote file
         #[arg(long)]
         overwrite: bool,
+        /// Also save remotes for submodules and nested repos
+        #[arg(long, short = 'r')]
+        recursive: bool,
     },
 }
 
@@ -46,25 +52,97 @@ mod tests {
     #[test]
     fn parse_sync() {
         let cli = Cli::try_parse_from(["gemote", "sync"]).unwrap();
-        assert!(matches!(cli.command, Commands::Sync { dry_run: false }));
+        assert!(matches!(
+            cli.command,
+            Commands::Sync {
+                dry_run: false,
+                recursive: false
+            }
+        ));
     }
 
     #[test]
     fn parse_sync_dry_run() {
         let cli = Cli::try_parse_from(["gemote", "sync", "--dry-run"]).unwrap();
-        assert!(matches!(cli.command, Commands::Sync { dry_run: true }));
+        assert!(matches!(
+            cli.command,
+            Commands::Sync {
+                dry_run: true,
+                recursive: false
+            }
+        ));
+    }
+
+    #[test]
+    fn parse_sync_recursive() {
+        let cli = Cli::try_parse_from(["gemote", "sync", "--recursive"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Sync {
+                dry_run: false,
+                recursive: true
+            }
+        ));
+    }
+
+    #[test]
+    fn parse_sync_recursive_short() {
+        let cli = Cli::try_parse_from(["gemote", "sync", "-r"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Sync {
+                dry_run: false,
+                recursive: true
+            }
+        ));
     }
 
     #[test]
     fn parse_save() {
         let cli = Cli::try_parse_from(["gemote", "save"]).unwrap();
-        assert!(matches!(cli.command, Commands::Save { overwrite: false }));
+        assert!(matches!(
+            cli.command,
+            Commands::Save {
+                overwrite: false,
+                recursive: false
+            }
+        ));
     }
 
     #[test]
     fn parse_save_overwrite() {
         let cli = Cli::try_parse_from(["gemote", "save", "--overwrite"]).unwrap();
-        assert!(matches!(cli.command, Commands::Save { overwrite: true }));
+        assert!(matches!(
+            cli.command,
+            Commands::Save {
+                overwrite: true,
+                recursive: false
+            }
+        ));
+    }
+
+    #[test]
+    fn parse_save_recursive() {
+        let cli = Cli::try_parse_from(["gemote", "save", "--recursive"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Save {
+                overwrite: false,
+                recursive: true
+            }
+        ));
+    }
+
+    #[test]
+    fn parse_save_recursive_short() {
+        let cli = Cli::try_parse_from(["gemote", "save", "-r"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Commands::Save {
+                overwrite: false,
+                recursive: true
+            }
+        ));
     }
 
     #[test]
