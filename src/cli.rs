@@ -190,9 +190,7 @@ mod tests {
         let cli = Cli::try_parse_from(["gemote", "completions", "bash"]).unwrap();
         assert!(matches!(
             cli.command,
-            Commands::Completions {
-                shell: Shell::Bash
-            }
+            Commands::Completions { shell: Shell::Bash }
         ));
     }
 
@@ -210,9 +208,7 @@ mod tests {
         let cli = Cli::try_parse_from(["gemote", "completions", "fish"]).unwrap();
         assert!(matches!(
             cli.command,
-            Commands::Completions {
-                shell: Shell::Fish
-            }
+            Commands::Completions { shell: Shell::Fish }
         ));
     }
 
