@@ -39,8 +39,7 @@ Write your current local remotes into a `.gemote` file:
 ```sh
 gemote save
 gemote save -f            # replace existing .gemote (--force)
-gemote save --recursive   # include submodules and nested repos
-gemote save -r            # short form
+gemote save -r            # recursive mode (--recursive)
 ```
 
 ### `gemote sync`
@@ -50,8 +49,7 @@ Set your local remotes to match the `.gemote` config:
 ```sh
 gemote sync
 gemote sync --dry-run     # preview changes without applying
-gemote sync --recursive   # also sync submodules and nested repos
-gemote sync -r            # short form
+gemote sync -r            # recursive mode (--recursive)
 ```
 
 ### Global flags
