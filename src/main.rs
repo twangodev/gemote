@@ -7,7 +7,8 @@ mod sync;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use clap::Parser;
+use clap::{CommandFactory, Parser};
+use clap_complete::generate;
 use colored::Colorize;
 
 use cli::{Cli, Commands};
@@ -15,6 +16,11 @@ use config::{GemoteConfig, RemoteConfig};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+
+    if let Commands::Completions { shell } = cli.command {
+        generate(shell, &mut Cli::command(), "gemote", &mut std::io::stdout());
+        return Ok(());
+    }
 
     let repo = git::open_repo(cli.repo.as_deref()).context("Could not open git repository")?;
     let repo_root = repo
@@ -29,6 +35,7 @@ fn main() -> Result<()> {
         Commands::Save { force, recursive } => {
             cmd_save(&repo, &repo_root, cli.config, force, recursive)
         }
+        Commands::Completions { .. } => unreachable!(),
     }
 }
 
