@@ -47,7 +47,16 @@ pub fn load_config(path: &Path) -> Result<GemoteConfig, GemoteError> {
 
 pub fn serialize_config(config: &GemoteConfig) -> Result<String, GemoteError> {
     let body = toml::to_string_pretty(config).map_err(GemoteError::ConfigSerialize)?;
-    Ok(format!("# -*- mode: toml -*-\n# vim: set ft=toml:\n{body}"))
+    Ok(format!(
+        "\
+# Gemote configuration file
+# See: https://github.com/twangodev/gemote
+#
+# -*- mode: toml -*-
+# vim: set ft=toml:
+
+{body}"
+    ))
 }
 
 #[cfg(test)]
