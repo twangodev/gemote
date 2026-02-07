@@ -71,7 +71,7 @@ jobs:
         run: mv "target/release/${{ matrix.bin }}" "${{ matrix.artifact }}"
 
       - name: Attest provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v3
         with:
           subject-path: ${{ matrix.artifact }}
 
