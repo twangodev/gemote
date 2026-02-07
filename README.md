@@ -22,7 +22,7 @@ cargo install --path .
 
 ### Pre-built binaries
 
-Download from [GitHub Releases](https://github.com/twangodev/gemote/releases). Binaries are available for:
+Built and attested binaries are available for Linux, macOS, and Windows. Download from [GitHub Releases](https://github.com/twangodev/gemote/releases)
 
 ### Docker
 
