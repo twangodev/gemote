@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "gemote", about = "Declarative git remote management")]
+#[command(name = "gemote", version, about = "Declarative git remote management.")]
 pub struct Cli {
     /// Path to the .gemote config file
     #[arg(long, global = true)]
