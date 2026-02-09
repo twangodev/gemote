@@ -477,4 +477,87 @@ mod tests {
         let paths: BTreeSet<String> = all.iter().map(|s| s.path.clone()).collect();
         assert_eq!(paths.len(), all.len());
     }
+
+    #[test]
+    fn discover_nested_repos_unreadable_dir() {
+        let dir = TempDir::new().unwrap();
+        let known = BTreeSet::new();
+        // Pass a nonexistent directory — read_dir fails, returns Ok(empty)
+        let result = discover_nested_repos(&dir.path().join("nonexistent"), &known).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn discover_nested_repos_corrupt_git_dir() {
+        let dir = TempDir::new().unwrap();
+        git2::Repository::init(dir.path()).unwrap();
+
+        // Create a directory with a .git file (not a valid repo)
+        let corrupt = dir.path().join("corrupt");
+        std::fs::create_dir_all(&corrupt).unwrap();
+        std::fs::write(corrupt.join(".git"), "invalid content").unwrap();
+
+        let known = BTreeSet::new();
+        let nested = discover_nested_repos(dir.path(), &known).unwrap();
+        // The corrupt repo should be skipped (warning printed), result is empty
+        assert!(nested.is_empty());
+    }
+
+    #[test]
+    fn list_submodules_with_initialized() {
+        // Create a "remote" repo with one commit
+        let remote_dir = TempDir::new().unwrap();
+        let remote_repo = git2::Repository::init(remote_dir.path()).unwrap();
+        let sig = git2::Signature::now("test", "test@test.com").unwrap();
+        {
+            let mut index = remote_repo.index().unwrap();
+            let tree_oid = index.write_tree().unwrap();
+            let tree = remote_repo.find_tree(tree_oid).unwrap();
+            remote_repo
+                .commit(Some("HEAD"), &sig, &sig, "init", &tree, &[])
+                .unwrap();
+        }
+
+        // Clone the remote into a working repo (this gives us a repo with proper history)
+        let dir = TempDir::new().unwrap();
+        let repo =
+            git2::Repository::clone(remote_dir.path().to_str().unwrap(), dir.path()).unwrap();
+
+        // Add a submodule pointing to the same remote
+        let mut sub = repo
+            .submodule(remote_dir.path().to_str().unwrap(), Path::new("sub"), true)
+            .unwrap();
+        sub.clone(None).unwrap();
+        sub.add_finalize().unwrap();
+
+        let subs = list_submodules(&repo).unwrap();
+        assert_eq!(subs.len(), 1);
+        assert_eq!(subs[0].path, "sub");
+    }
+
+    #[test]
+    fn list_submodules_with_uninitialized() {
+        let dir = TempDir::new().unwrap();
+        let repo = git2::Repository::init(dir.path()).unwrap();
+
+        // Create a .gitmodules file referencing a submodule that doesn't exist
+        let gitmodules =
+            "[submodule \"missing\"]\n\tpath = missing\n\turl = https://example.com/missing.git\n";
+        std::fs::write(dir.path().join(".gitmodules"), gitmodules).unwrap();
+
+        // Stage and commit .gitmodules so git2 recognizes the submodule
+        let mut index = repo.index().unwrap();
+        index.add_path(Path::new(".gitmodules")).unwrap();
+        index.write().unwrap();
+        let tree_oid = index.write_tree().unwrap();
+        let tree = repo.find_tree(tree_oid).unwrap();
+        let sig = git2::Signature::now("test", "test@test.com").unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "init", &tree, &[])
+            .unwrap();
+
+        // list_submodules should handle the uninitialized submodule gracefully
+        let subs = list_submodules(&repo).unwrap();
+        // The submodule can't be opened, so it should be skipped
+        assert!(subs.is_empty());
+    }
 }

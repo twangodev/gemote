@@ -345,6 +345,65 @@ extra_remotes = "ignore"
 }
 
 #[test]
+fn sync_recursive_deeply_nested() {
+    let (dir, _repo) = create_test_repo();
+    let nested = create_nested_repo(dir.path(), "libs/core");
+    nested.remote("old", "https://old.com/core.git").unwrap();
+    let deep = create_nested_repo(dir.path().join("libs/core").as_path(), "inner");
+    deep.remote("stale", "https://stale.com/inner.git").unwrap();
+
+    write_config(
+        dir.path(),
+        r#"
+[remotes.origin]
+url = "https://example.com/repo.git"
+
+[submodules."libs/core".remotes.origin]
+url = "https://example.com/core.git"
+
+[submodules."libs/core".submodules."inner".remotes.origin]
+url = "https://example.com/inner.git"
+"#,
+    );
+
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "sync", "-r"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Submodule"));
+
+    // Verify the deeply nested repo got its remote
+    let (url, _) = get_remote_url(&deep, "origin");
+    assert_eq!(url, "https://example.com/inner.git");
+}
+
+#[test]
+fn sync_recursive_deeply_nested_no_config() {
+    let (dir, _repo) = create_test_repo();
+    let _nested = create_nested_repo(dir.path(), "libs/core");
+    let _deep = create_nested_repo(dir.path().join("libs/core").as_path(), "inner");
+
+    // libs/core has a submodule entry for "other" (making submodules non-empty
+    // so sync_submodules_recursive is called), but "inner" has no config section
+    write_config(
+        dir.path(),
+        r#"
+[submodules."libs/core".remotes.origin]
+url = "https://example.com/core.git"
+
+[submodules."libs/core".submodules."other".remotes.origin]
+url = "https://example.com/other.git"
+"#,
+    );
+
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "sync", "-r"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("has no config section"));
+}
+
+#[test]
 fn sync_nonrecursive_ignores_nested() {
     let (dir, _repo) = create_test_repo();
     let nested = create_nested_repo(dir.path(), "libs/core");

@@ -211,6 +211,60 @@ fn save_nonrecursive_ignores_nested() {
 }
 
 #[test]
+fn save_recursive_deeply_nested() {
+    let (dir, _repo) = create_test_repo();
+    let nested = create_nested_repo(dir.path(), "libs/core");
+    nested
+        .remote("origin", "https://example.com/core.git")
+        .unwrap();
+    let deep = create_nested_repo(dir.path().join("libs/core").as_path(), "inner");
+    deep.remote("origin", "https://example.com/inner.git")
+        .unwrap();
+
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "save", "-r"])
+        .assert()
+        .success();
+
+    let content = std::fs::read_to_string(dir.path().join(".gemote")).unwrap();
+    assert!(content.contains("[submodules.\"libs/core\".submodules.inner.remotes.origin]"));
+    assert!(content.contains("https://example.com/inner.git"));
+}
+
+#[test]
+fn save_then_sync_deeply_nested_roundtrip() {
+    let (dir, repo) = create_test_repo();
+    add_test_remote(&repo, "origin", "https://example.com/repo.git", None);
+    let nested = create_nested_repo(dir.path(), "libs/core");
+    nested
+        .remote("origin", "https://example.com/core.git")
+        .unwrap();
+    let deep = create_nested_repo(dir.path().join("libs/core").as_path(), "inner");
+    deep.remote("origin", "https://example.com/inner.git")
+        .unwrap();
+
+    // Save recursively
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "save", "-r"])
+        .assert()
+        .success();
+
+    // Delete all remotes from the deeply nested repo
+    deep.remote_delete("origin").unwrap();
+    assert!(deep.remotes().unwrap().is_empty());
+
+    // Sync recursively to restore
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "sync", "-r"])
+        .assert()
+        .success();
+
+    // Verify deeply nested repo's remotes are restored
+    let (url, _) = get_remote_url(&deep, "origin");
+    assert_eq!(url, "https://example.com/inner.git");
+}
+
+#[test]
 fn save_then_sync_recursive_roundtrip() {
     let (dir, repo) = create_test_repo();
     add_test_remote(&repo, "origin", "https://example.com/repo.git", None);
