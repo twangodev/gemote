@@ -38,9 +38,17 @@ jobs:
           components: clippy
       - run: cargo clippy -- -D warnings
 
+  msrv:
+    name: MSRV
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: taiki-e/install-action@cargo-hack
+      - run: cargo hack check --rust-version --workspace --all-targets
+
   test:
     name: Test (${{ matrix.os }})
-    needs: [setup, fmt, clippy]
+    needs: [setup, fmt, clippy, msrv]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
