@@ -2,6 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/gemote)](https://crates.io/crates/gemote)
 [![CI](https://img.shields.io/github/actions/workflow/status/twangodev/gemote/rust.yml)](https://github.com/twangodev/gemote/actions/workflows/rust.yml)
+[![Coverage](https://img.shields.io/codecov/c/github/twangodev/gemote)](https://codecov.io/gh/twangodev/gemote)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/twangodev/gemote/blob/main/LICENSE)
 
 Declarative git remote management. Define your remotes in a `.gemote` file, commit it, and keep the whole team in sync.
