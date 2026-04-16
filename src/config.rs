@@ -19,6 +19,12 @@ pub struct GemoteConfig {
 pub struct Settings {
     #[serde(default)]
     pub extra_remotes: ExtraRemotes,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub recursive: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -79,6 +85,7 @@ mod tests {
         ] {
             let settings = Settings {
                 extra_remotes: variant.clone(),
+                recursive: false,
             };
             let serialized = toml::to_string(&settings).unwrap();
             let deserialized: Settings = toml::from_str(&serialized).unwrap();
@@ -356,5 +363,39 @@ url = "https://example.com/repo.git"
         let cfg = GemoteConfig::default();
         let output = serialize_config(&cfg).unwrap();
         assert!(!output.contains("submodules"));
+    }
+
+    #[test]
+    fn recursive_roundtrip_true() {
+        let settings = Settings {
+            extra_remotes: ExtraRemotes::Ignore,
+            recursive: true,
+        };
+        let serialized = toml::to_string(&settings).unwrap();
+        let deserialized: Settings = toml::from_str(&serialized).unwrap();
+        assert!(deserialized.recursive);
+    }
+
+    #[test]
+    fn serialize_omits_recursive_when_false() {
+        let cfg = GemoteConfig::default();
+        let output = serialize_config(&cfg).unwrap();
+        assert!(!output.contains("recursive"));
+    }
+
+    #[test]
+    fn parse_without_recursive_defaults_false() {
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        write!(
+            f,
+            r#"
+[remotes.origin]
+url = "https://example.com/repo.git"
+"#
+        )
+        .unwrap();
+
+        let cfg = load_config(f.path()).unwrap();
+        assert!(!cfg.settings.recursive);
     }
 }

@@ -164,6 +164,7 @@ mod tests {
         let mut cfg = GemoteConfig {
             settings: Settings {
                 extra_remotes: extra,
+                recursive: false,
             },
             remotes: BTreeMap::new(),
             submodules: BTreeMap::new(),

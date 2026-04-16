@@ -299,3 +299,120 @@ fn save_then_sync_recursive_roundtrip() {
     let (url, _) = get_remote_url(&nested, "upstream");
     assert_eq!(url, "https://upstream.com/core.git");
 }
+
+#[test]
+fn save_preserves_prior_settings() {
+    let (dir, repo) = create_test_repo();
+    add_test_remote(&repo, "origin", "https://example.com/repo.git", None);
+    write_config(
+        dir.path(),
+        r#"
+[settings]
+extra_remotes = "warn"
+recursive = true
+
+[remotes.origin]
+url = "https://stale.example.com/repo.git"
+"#,
+    );
+
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "save", "-f"])
+        .assert()
+        .success();
+
+    let content = std::fs::read_to_string(dir.path().join(".gemote")).unwrap();
+    assert!(content.contains("extra_remotes = \"warn\""));
+    assert!(content.contains("recursive = true"));
+    // Remote URL is rebuilt from live state, not carried over
+    assert!(content.contains("https://example.com/repo.git"));
+    assert!(!content.contains("stale.example.com"));
+}
+
+#[test]
+fn save_config_recursive_true_recurses_without_flag() {
+    let (dir, repo) = create_test_repo();
+    add_test_remote(&repo, "origin", "https://example.com/repo.git", None);
+    let nested = create_nested_repo(dir.path(), "libs/core");
+    nested
+        .remote("origin", "https://example.com/core.git")
+        .unwrap();
+    write_config(
+        dir.path(),
+        r#"
+[settings]
+recursive = true
+"#,
+    );
+
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "save", "-f"])
+        .assert()
+        .success();
+
+    let content = std::fs::read_to_string(dir.path().join(".gemote")).unwrap();
+    assert!(content.contains("[submodules.\"libs/core\".remotes.origin]"));
+    assert!(content.contains("https://example.com/core.git"));
+}
+
+#[test]
+fn save_no_recursive_flag_overrides_config_true() {
+    let (dir, repo) = create_test_repo();
+    add_test_remote(&repo, "origin", "https://example.com/repo.git", None);
+    let nested = create_nested_repo(dir.path(), "libs/core");
+    nested
+        .remote("origin", "https://example.com/core.git")
+        .unwrap();
+    write_config(
+        dir.path(),
+        r#"
+[settings]
+recursive = true
+"#,
+    );
+
+    gemote()
+        .args([
+            "--repo",
+            dir.path().to_str().unwrap(),
+            "save",
+            "-f",
+            "--no-recursive",
+        ])
+        .assert()
+        .success();
+
+    let content = std::fs::read_to_string(dir.path().join(".gemote")).unwrap();
+    assert!(!content.contains("submodules"));
+}
+
+#[test]
+fn save_warns_when_overwriting_submodule_sections() {
+    let (dir, repo) = create_test_repo();
+    add_test_remote(&repo, "origin", "https://example.com/repo.git", None);
+    write_config(
+        dir.path(),
+        r#"
+[submodules."libs/core".remotes.origin]
+url = "https://example.com/core.git"
+"#,
+    );
+
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "save", "-f"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("recursion is disabled"));
+}
+
+#[test]
+fn save_errors_on_malformed_existing_config() {
+    let (dir, repo) = create_test_repo();
+    add_test_remote(&repo, "origin", "https://example.com/repo.git", None);
+    write_config(dir.path(), "this is not = [valid toml");
+
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "save", "-f"])
+        .assert()
+        .failure();
+}

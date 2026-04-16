@@ -14,6 +14,10 @@ use colored::Colorize;
 use cli::{Cli, Commands};
 use config::{GemoteConfig, RemoteConfig};
 
+fn effective_recursive(cli: Option<bool>, cfg: bool) -> bool {
+    cli.unwrap_or(cfg)
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -30,13 +34,26 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Sync { dry_run, recursive } => {
-            cmd_sync(&repo, &repo_root, cli.config, dry_run, recursive)
+            cmd_sync(&repo, &repo_root, cli.config, dry_run, recursive.resolve())
         }
         Commands::Save { force, recursive } => {
-            cmd_save(&repo, &repo_root, cli.config, force, recursive)
+            cmd_save(&repo, &repo_root, cli.config, force, recursive.resolve())
         }
         Commands::Completions { .. } => unreachable!(),
     }
+}
+
+fn warn_submodules_skipped(cfg: &GemoteConfig) {
+    let count = cfg.submodules.len();
+    if count == 0 {
+        return;
+    }
+    eprintln!(
+        "{} .gemote defines {} submodule section(s) but recursion is disabled.",
+        "warning:".yellow().bold(),
+        count
+    );
+    eprintln!("         Pass -r, or add `recursive = true` under [settings] in .gemote.");
 }
 
 fn cmd_sync(
@@ -44,11 +61,17 @@ fn cmd_sync(
     repo_root: &Path,
     config_path: Option<PathBuf>,
     dry_run: bool,
-    recursive: bool,
+    cli_recursive: Option<bool>,
 ) -> Result<()> {
     let config_file = config_path.unwrap_or_else(|| repo_root.join(".gemote"));
     let cfg = config::load_config(&config_file)
         .with_context(|| format!("Failed to load config from {}", config_file.display()))?;
+
+    let recursive = effective_recursive(cli_recursive, cfg.settings.recursive);
+
+    if !recursive {
+        warn_submodules_skipped(&cfg);
+    }
 
     sync_one_repo(repo, &cfg, None, dry_run)?;
 
@@ -161,7 +184,7 @@ fn cmd_save(
     repo_root: &Path,
     config_path: Option<PathBuf>,
     force: bool,
-    recursive: bool,
+    cli_recursive: Option<bool>,
 ) -> Result<()> {
     let config_file = config_path.unwrap_or_else(|| repo_root.join(".gemote"));
 
@@ -172,7 +195,32 @@ fn cmd_save(
         );
     }
 
+    let prior = if config_file.exists() {
+        Some(config::load_config(&config_file).with_context(|| {
+            format!(
+                "Failed to load existing config at {}",
+                config_file.display()
+            )
+        })?)
+    } else {
+        None
+    };
+
+    let prior_settings = prior.as_ref().map(|c| c.settings.clone());
+    let cfg_recursive = prior_settings
+        .as_ref()
+        .map(|s| s.recursive)
+        .unwrap_or(false);
+    let recursive = effective_recursive(cli_recursive, cfg_recursive);
+
+    if !recursive && let Some(prior_cfg) = prior.as_ref() {
+        warn_submodules_skipped(prior_cfg);
+    }
+
     let mut cfg = save_one_repo(repo)?;
+    if let Some(s) = prior_settings {
+        cfg.settings = s;
+    }
 
     if recursive {
         let sub_repos =
@@ -231,4 +279,21 @@ fn save_one_repo(repo: &git2::Repository) -> Result<GemoteConfig> {
         );
     }
     Ok(cfg)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::effective_recursive;
+
+    #[test]
+    fn cli_override_beats_cfg() {
+        assert!(effective_recursive(Some(true), false));
+        assert!(!effective_recursive(Some(false), true));
+    }
+
+    #[test]
+    fn cli_none_falls_back_to_cfg() {
+        assert!(effective_recursive(None, true));
+        assert!(!effective_recursive(None, false));
+    }
 }
