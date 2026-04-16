@@ -144,8 +144,7 @@ jobs:
 
   publish:
     name: Publish to crates.io
-    if: needs.release-please.outputs.release_created == 'true'
-    needs: [build, release-please]
+    needs: [release]
     runs-on: ubuntu-latest
     environment: crates-io
     permissions:
@@ -162,8 +161,7 @@ jobs:
 
   docker:
     name: Docker
-    if: needs.release-please.outputs.release_created == 'true'
-    needs: [build, release-please]
+    needs: [release-please, release]
     runs-on: ubuntu-latest
     environment: docker
     permissions:
