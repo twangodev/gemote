@@ -419,8 +419,83 @@ url = "https://example.com/core.git"
     gemote()
         .args(["--repo", dir.path().to_str().unwrap(), "sync"])
         .assert()
-        .success();
+        .success()
+        .stderr(predicate::str::contains("recursion is disabled"));
 
     // Nested repo should NOT have the remote
     assert!(nested.find_remote("origin").is_err());
+}
+
+#[test]
+fn sync_config_recursive_true_recurses_without_flag() {
+    let (dir, _repo) = create_test_repo();
+    let nested = create_nested_repo(dir.path(), "libs/core");
+
+    write_config(
+        dir.path(),
+        r#"
+[settings]
+recursive = true
+
+[submodules."libs/core".remotes.origin]
+url = "https://example.com/core.git"
+"#,
+    );
+
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "sync"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("recursion is disabled").not());
+
+    let (url, _) = get_remote_url(&nested, "origin");
+    assert_eq!(url, "https://example.com/core.git");
+}
+
+#[test]
+fn sync_no_recursive_flag_overrides_config_true() {
+    let (dir, _repo) = create_test_repo();
+    let nested = create_nested_repo(dir.path(), "libs/core");
+
+    write_config(
+        dir.path(),
+        r#"
+[settings]
+recursive = true
+
+[submodules."libs/core".remotes.origin]
+url = "https://example.com/core.git"
+"#,
+    );
+
+    gemote()
+        .args([
+            "--repo",
+            dir.path().to_str().unwrap(),
+            "sync",
+            "--no-recursive",
+        ])
+        .assert()
+        .success();
+
+    assert!(nested.find_remote("origin").is_err());
+}
+
+#[test]
+fn sync_no_warning_when_flat_config() {
+    let (dir, _repo) = create_test_repo();
+
+    write_config(
+        dir.path(),
+        r#"
+[remotes.origin]
+url = "https://example.com/repo.git"
+"#,
+    );
+
+    gemote()
+        .args(["--repo", dir.path().to_str().unwrap(), "sync"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("recursion is disabled").not());
 }

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::builder::styling::{AnsiColor, Effects, Styles};
-use clap::{Parser, Subcommand};
+use clap::{ArgAction, Args, Parser, Subcommand};
 use clap_complete::Shell;
 
 const STYLES: Styles = Styles::styled()
@@ -32,18 +32,16 @@ pub enum Commands {
         /// Preview changes without applying them
         #[arg(long)]
         dry_run: bool,
-        /// Also process submodules and nested repos
-        #[arg(long, short = 'r')]
-        recursive: bool,
+        #[command(flatten)]
+        recursive: RecursiveFlag,
     },
     /// Save current local remotes into .gemote
     Save {
         /// Overwrite existing .gemote file
         #[arg(long, short = 'f')]
         force: bool,
-        /// Also save remotes for submodules and nested repos
-        #[arg(long, short = 'r')]
-        recursive: bool,
+        #[command(flatten)]
+        recursive: RecursiveFlag,
     },
     /// Generate shell completions
     Completions {
@@ -52,10 +50,69 @@ pub enum Commands {
     },
 }
 
+#[derive(Args, Debug, Clone, Default)]
+pub struct RecursiveFlag {
+    /// Also process submodules and nested repos (overrides settings.recursive)
+    #[arg(
+        long,
+        short = 'r',
+        action = ArgAction::SetTrue,
+        overrides_with = "no_recursive",
+    )]
+    recursive: bool,
+    /// Disable recursion for this invocation (overrides settings.recursive)
+    #[arg(
+        long = "no-recursive",
+        action = ArgAction::SetTrue,
+        overrides_with = "recursive",
+    )]
+    no_recursive: bool,
+}
+
+impl RecursiveFlag {
+    pub fn resolve(&self) -> Option<bool> {
+        if self.recursive {
+            Some(true)
+        } else if self.no_recursive {
+            Some(false)
+        } else {
+            None
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use clap::CommandFactory;
+
+    fn sync_dry_run(cli: &Cli) -> bool {
+        match &cli.command {
+            Commands::Sync { dry_run, .. } => *dry_run,
+            _ => panic!("expected sync"),
+        }
+    }
+
+    fn save_force(cli: &Cli) -> bool {
+        match &cli.command {
+            Commands::Save { force, .. } => *force,
+            _ => panic!("expected save"),
+        }
+    }
+
+    fn sync_recursive(cli: &Cli) -> Option<bool> {
+        match &cli.command {
+            Commands::Sync { recursive, .. } => recursive.resolve(),
+            _ => panic!("expected sync"),
+        }
+    }
+
+    fn save_recursive(cli: &Cli) -> Option<bool> {
+        match &cli.command {
+            Commands::Save { recursive, .. } => recursive.resolve(),
+            _ => panic!("expected save"),
+        }
+    }
 
     #[test]
     fn verify_cli() {
@@ -65,109 +122,78 @@ mod tests {
     #[test]
     fn parse_sync() {
         let cli = Cli::try_parse_from(["gemote", "sync"]).unwrap();
-        assert!(matches!(
-            cli.command,
-            Commands::Sync {
-                dry_run: false,
-                recursive: false
-            }
-        ));
+        assert!(!sync_dry_run(&cli));
+        assert_eq!(sync_recursive(&cli), None);
     }
 
     #[test]
     fn parse_sync_dry_run() {
         let cli = Cli::try_parse_from(["gemote", "sync", "--dry-run"]).unwrap();
-        assert!(matches!(
-            cli.command,
-            Commands::Sync {
-                dry_run: true,
-                recursive: false
-            }
-        ));
+        assert!(sync_dry_run(&cli));
+        assert_eq!(sync_recursive(&cli), None);
     }
 
     #[test]
     fn parse_sync_recursive() {
         let cli = Cli::try_parse_from(["gemote", "sync", "--recursive"]).unwrap();
-        assert!(matches!(
-            cli.command,
-            Commands::Sync {
-                dry_run: false,
-                recursive: true
-            }
-        ));
+        assert_eq!(sync_recursive(&cli), Some(true));
     }
 
     #[test]
     fn parse_sync_recursive_short() {
         let cli = Cli::try_parse_from(["gemote", "sync", "-r"]).unwrap();
-        assert!(matches!(
-            cli.command,
-            Commands::Sync {
-                dry_run: false,
-                recursive: true
-            }
-        ));
+        assert_eq!(sync_recursive(&cli), Some(true));
+    }
+
+    #[test]
+    fn parse_sync_no_recursive() {
+        let cli = Cli::try_parse_from(["gemote", "sync", "--no-recursive"]).unwrap();
+        assert_eq!(sync_recursive(&cli), Some(false));
+    }
+
+    #[test]
+    fn parse_sync_last_flag_wins() {
+        let cli = Cli::try_parse_from(["gemote", "sync", "--recursive", "--no-recursive"]).unwrap();
+        assert_eq!(sync_recursive(&cli), Some(false));
     }
 
     #[test]
     fn parse_save() {
         let cli = Cli::try_parse_from(["gemote", "save"]).unwrap();
-        assert!(matches!(
-            cli.command,
-            Commands::Save {
-                force: false,
-                recursive: false
-            }
-        ));
+        assert!(!save_force(&cli));
+        assert_eq!(save_recursive(&cli), None);
     }
 
     #[test]
     fn parse_save_force() {
         let cli = Cli::try_parse_from(["gemote", "save", "--force"]).unwrap();
-        assert!(matches!(
-            cli.command,
-            Commands::Save {
-                force: true,
-                recursive: false
-            }
-        ));
+        assert!(save_force(&cli));
+        assert_eq!(save_recursive(&cli), None);
     }
 
     #[test]
     fn parse_save_force_short() {
         let cli = Cli::try_parse_from(["gemote", "save", "-f"]).unwrap();
-        assert!(matches!(
-            cli.command,
-            Commands::Save {
-                force: true,
-                recursive: false
-            }
-        ));
+        assert!(save_force(&cli));
+        assert_eq!(save_recursive(&cli), None);
     }
 
     #[test]
     fn parse_save_recursive() {
         let cli = Cli::try_parse_from(["gemote", "save", "--recursive"]).unwrap();
-        assert!(matches!(
-            cli.command,
-            Commands::Save {
-                force: false,
-                recursive: true
-            }
-        ));
+        assert_eq!(save_recursive(&cli), Some(true));
     }
 
     #[test]
     fn parse_save_recursive_short() {
         let cli = Cli::try_parse_from(["gemote", "save", "-r"]).unwrap();
-        assert!(matches!(
-            cli.command,
-            Commands::Save {
-                force: false,
-                recursive: true
-            }
-        ));
+        assert_eq!(save_recursive(&cli), Some(true));
+    }
+
+    #[test]
+    fn parse_save_no_recursive() {
+        let cli = Cli::try_parse_from(["gemote", "save", "--no-recursive"]).unwrap();
+        assert_eq!(save_recursive(&cli), Some(false));
     }
 
     #[test]
