@@ -122,10 +122,17 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  release:
-    name: Release
+  should-release:
+    name: Should release
     if: needs.release-please.outputs.release_created == 'true'
-    needs: [build, release-please]
+    needs: [release-please]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Releasing ${{ needs.release-please.outputs.tag_name }}"
+
+  release-github:
+    name: Release (GitHub)
+    needs: [build, release-please, should-release]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -144,7 +151,7 @@ jobs:
 
   publish:
     name: Publish to crates.io
-    needs: [release]
+    needs: [should-release]
     runs-on: ubuntu-latest
     environment: crates-io
     permissions:
@@ -161,7 +168,7 @@ jobs:
 
   docker:
     name: Docker
-    needs: [release-please, release]
+    needs: [release-please, should-release]
     runs-on: ubuntu-latest
     environment: docker
     permissions:
