@@ -48,7 +48,7 @@ jobs:
 
   test:
     name: Test (${{ matrix.os }})
-    needs: [setup, fmt, clippy, msrv]
+    needs: [setup]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -60,7 +60,6 @@ jobs:
 
   coverage:
     name: Coverage
-    needs: [msrv]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -75,7 +74,7 @@ jobs:
 
   build:
     name: Build (${{ matrix.artifact }})
-    needs: [setup, test]
+    needs: [setup]
     runs-on: ${{ matrix.os }}
     permissions:
       id-token: write
@@ -104,10 +103,18 @@ jobs:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}
 
+  required-checks:
+    name: Required Checks
+    if: always()
+    needs: [fmt, clippy, msrv, test, build]
+    runs-on: ubuntu-latest
+    steps:
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
+
   release-please:
     name: Release Please
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -125,14 +132,14 @@ jobs:
   should-release:
     name: Should release
     if: needs.release-please.outputs.release_created == 'true'
-    needs: [release-please]
+    needs: [release-please, required-checks]
     runs-on: ubuntu-latest
     steps:
       - run: echo "Releasing ${{ needs.release-please.outputs.tag_name }}"
 
   release-github:
     name: Release (GitHub)
-    needs: [build, release-please, should-release]
+    needs: [release-please, should-release]
     runs-on: ubuntu-latest
     permissions:
       contents: write
