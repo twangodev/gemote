@@ -13,7 +13,7 @@ readme = "README.md"
 [dependencies]
 anyhow = "1.0.101"
 clap = { version = "4.5.57", features = ["derive", "color"] }
-clap_complete = "4.5.65"
+clap_complete = "4.5.66"
 colored = "3.1.1"
 git2 = "0.20.4"
 path-slash = "0.2.1"
