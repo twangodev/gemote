@@ -50,13 +50,24 @@ jobs:
     name: Test (${{ matrix.os }})
     needs: [setup]
     runs-on: ${{ matrix.os }}
+    permissions:
+      checks: write
     strategy:
+      fail-fast: false
       matrix:
         include: ${{ fromJson(needs.setup.outputs.targets) }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - run: cargo test
+      - uses: taiki-e/install-action@nextest
+      - run: cargo nextest run --profile ci
+      - name: Publish test report
+        if: always()
+        uses: dorny/test-reporter@v2
+        with:
+          name: Test Report (${{ matrix.os }})
+          path: target/nextest/ci/junit.xml
+          reporter: java-junit
 
   coverage:
     name: Coverage
