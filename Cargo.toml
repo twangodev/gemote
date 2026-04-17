@@ -1,6 +1,6 @@
 [package]
 name = "gemote"
-version = "0.3.1"
+version = "0.4.0"
 edition = "2024"
 rust-version = "1.88.0"
 description = "Declarative git remote management."
