@@ -24,4 +24,4 @@ toml = "1.0.3"
 [dev-dependencies]
 assert_cmd = "2.1.2"
 predicates = "3.1.4"
-tempfile = "3.25.0"
+tempfile = "3.27.0"
