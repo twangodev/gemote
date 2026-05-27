@@ -1,41 +1,20 @@
-# AGENTS.md
+# gemote
 
-## Project
+CLI for declarative git remote management. Remotes are defined in a `.gemote` TOML file committed to the repo; `gemote sync` makes local remotes match the file, `gemote save` writes current remotes into it.
 
-`gemote` is a Rust CLI for declarative git remote management. Users commit a `.gemote` TOML file describing the desired remotes, and the tool syncs local git remotes to match (or saves current state into the config). The repo dogfoods itself: its own `.gemote` defines its remotes.
+## Dev
 
-## Common commands
+- `cargo test` — unit tests are inline per module; integration tests in `tests/` drive the binary via `assert_cmd`.
+- `cargo fmt --check` and `cargo clippy -- -D warnings` must pass (CI gates on both).
+- MSRV 1.88.0, edition 2024 — don't reach for newer APIs.
 
-```sh
-cargo build                      # debug build
-cargo test                       # unit + integration tests
-cargo test <name>                # filter by substring
-cargo test --test sync_command   # run a single integration test binary
-cargo fmt --check                # formatting
-cargo clippy -- -D warnings      # lints
-cargo run -- sync --dry-run      # run the CLI locally
-```
+## Where things live
 
-For MSRV checks, coverage, release, Docker, and the full CI matrix, see `.github/workflows/rust.yml` and `.github/targets.json`.
+- `cli.rs` — clap arg/subcommand definitions.
+- `main.rs` — orchestration + recursive submodule traversal + colored output. No git/diff logic.
+- `config.rs` — `GemoteConfig` model and TOML (de)serialization. Recursive: submodules nest as `GemoteConfig`.
+- `git.rs` — all `git2` calls: remote ops + repo/submodule discovery.
+- `sync.rs` — the diff engine. `compute_diff` is pure; `apply_actions` executes it.
+- `error.rs` — `GemoteError`.
 
-## Architecture
-
-Thin CLI shell over a pure diff/apply core:
-
-1. **`cli.rs`** — clap-derived `Cli` + `Commands` enum (`Sync`, `Save`, `Completions`). Global flags `--config` and `--repo` apply to all subcommands.
-2. **`git.rs`** — `git2` wrappers plus submodule / nested-repo discovery (`list_submodules`, `discover_nested_repos`, `collect_all_repos`). Uninitialized submodules and unreadable directories warn rather than error. Paths use forward slashes via `path-slash` for cross-platform TOML stability.
-3. **`config.rs`** — serde/TOML schema. `GemoteConfig` is recursive: `submodules: BTreeMap<String, GemoteConfig>` lets the same structure describe nested repos.
-4. **`sync.rs`** — the core. `compute_diff(config, local) -> Vec<SyncAction>` is a **pure function** producing `Add`/`UpdateUrl`/`UpdatePushUrl`/`Remove`. `apply_actions` executes them. This separation is why `--dry-run` just skips `apply_actions`; don't collapse the two.
-5. **`main.rs`** — orchestration. Recursive mode walks submodules/nested repos, keying into `cfg.submodules` by path.
-
-### Invariants
-
-- `extra_remotes` (`ignore`/`warn`/`remove`) only affects local remotes **not** in config; remotes in config are always added/updated.
-- Nested repo discovery stops at git boundaries — a nested repo's subdirectories are its own concern.
-- `list_submodules` results take precedence over discovered nested repos; `collect_all_repos` deduplicates by path.
-
-## Testing
-
-- **Unit tests** inline via `#[cfg(test)] mod tests`, using `tempfile::TempDir` + `git2::Repository::init`.
-- **Integration tests** in `tests/` drive the binary via `assert_cmd`; prefer the helpers in `tests/common/mod.rs` over open-coded setup.
-- On macOS, `git2::Repository::workdir().canonicalize()` is needed to resolve the `/var` → `/private/var` symlink when comparing paths.
+The flow is: read config + git state → `compute_diff` → apply or print. Keep `compute_diff` side-effect-free — that's what makes `--dry-run` reliable.
